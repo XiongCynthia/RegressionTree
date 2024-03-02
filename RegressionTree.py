@@ -1,5 +1,4 @@
 import torch
-from sklearn.metrics import mean_squared_error as mse
 
 class RegressionTree:
     '''
@@ -48,7 +47,7 @@ class RegressionTree:
         # Determine decision for the root node
         bound, col_idx = self.__find_best_tree(X, y)
 
-        # Store upper bound and feature indxe of the tree with the lowest mse in the root node
+        # Store upper bound and feature indxe of the tree with the lowest sum of errors in the root node
         self.root_.val = bound
         self.root_.feature_idx = col_idx
         
@@ -169,7 +168,7 @@ class RegressionTree:
             bound, error = self.__find_best_bound(X[:,col_idx], y)
             bounds.append(bound)
             errors.append(error)
-        # Find and return upper bound and mse of best tree (i.e., tree with lowest mse)
+        # Find and return upper bound and sum of errors of best tree (i.e., tree with lowest sum of errors)
         min_idx = errors.index(min(errors))
         return bounds[min_idx], min_idx
     
@@ -187,24 +186,39 @@ class RegressionTree:
         if Xn.shape[0] <= 2:
             y_pred = torch.mean(y)
             return y_pred, sum(y - [y_pred]*Xn.shape[0])
-        errors = []
+        errors = [] # Store sum of errors
         for val in Xn:
             idx = Xn < val
             if (len(Xn[idx]) == 0) or (len(Xn[~idx]) == 0):
                 # This will occur if val is the minimum or maximum value in Xn
                 errors.append(-1) # Use a -1 placeholder to represent an invalid upper bound for splitting
                 continue
-            y_pred = torch.mean(y[idx])
-            error = mse(y[idx], [y_pred]*torch.sum(idx))
 
-            y_pred = torch.mean(y[~idx])
-            error += mse(y[~idx], [y_pred]*torch.sum(~idx))
-
+            # Calculate sum of errors
+            # # Xn < val
+            # y_pred = torch.mean(y[idx]).repeat(torch.sum(idx))
+            # error = torch.sum(y_pred - y[idx])
+            # # Xn >= val
+            # y_pred = torch.mean(y[~idx]).repeat(torch.sum(~idx))
+            # error += torch.sum(y_pred - y[~idx])
+            error = self.__sum_of_errors(y[idx], torch.mean(y[idx]))
+            error += self.__sum_of_errors(y[~idx], torch.mean(y[~idx]))
             errors.append(error)
-        # Get index of minimum mse (while ignoring -1 values)
-        min_idx = errors.index(min([val for val in errors if val != -1]))
+
+        # Remove placeholder values (-1)
+        valid_errors = [val for val in errors if val != -1]
+
+        if len(valid_errors) == 0:
+            # This may occur if all values in Xn are the same
+            return Xn[0], self.__sum_of_errors(Xn, Xn[0])
+        # Get index of minimum sum of errors
+        min_idx = errors.index(min(valid_errors))
         return Xn[min_idx], errors[min_idx]
     
+
+    def __sum_of_errors(self, y_true, y_pred:torch.Tensor):
+        return torch.sum(y_pred.repeat(len(y_true)) - y_true)
+        
     
     def __search_tree(self, feature_vals):
         '''
