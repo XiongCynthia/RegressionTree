@@ -195,12 +195,6 @@ class RegressionTree:
                 continue
 
             # Calculate sum of errors
-            # # Xn < val
-            # y_pred = torch.mean(y[idx]).repeat(torch.sum(idx))
-            # error = torch.sum(y_pred - y[idx])
-            # # Xn >= val
-            # y_pred = torch.mean(y[~idx]).repeat(torch.sum(~idx))
-            # error += torch.sum(y_pred - y[~idx])
             error = self.__sum_of_errors(y[idx], torch.mean(y[idx]))
             error += self.__sum_of_errors(y[~idx], torch.mean(y[~idx]))
             errors.append(error)
